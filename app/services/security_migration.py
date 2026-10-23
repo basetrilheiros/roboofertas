@@ -9,6 +9,10 @@ from services.crypto import DEFAULT_KEY_FILE, decrypt_secret, encrypt_secret
 FIELDS = ("client_secret_encrypted", "access_token_encrypted", "refresh_token_encrypted")
 
 def migrate_security(db_path, key_file=DEFAULT_KEY_FILE):
+    from database.connection import is_postgres
+    if is_postgres(db_path):
+        # PostgreSQL installations start with the current version; legacy conversion is offline only.
+        return
     db_path, key_file = Path(db_path), Path(key_file)
     conn = sqlite3.connect(db_path)
     try:

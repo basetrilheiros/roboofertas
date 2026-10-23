@@ -9,12 +9,19 @@ from typing import Generator, Optional
 
 from config import DB_PATH
 
+def is_postgres(target):
+    return isinstance(target, str) and target.startswith(("postgres://", "postgresql://"))
+
+
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 
 
 def connect_db(db_path: Optional[Path] = None) -> sqlite3.Connection:
     """Cria e configura uma conexão com SQLite."""
     target_path = db_path or DB_PATH
+    if is_postgres(target_path):
+        from database.postgres import Connection
+        return Connection(str(target_path))
     target_path.parent.mkdir(parents=True, exist_ok=True)
     
     conn = sqlite3.connect(

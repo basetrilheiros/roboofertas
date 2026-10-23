@@ -15,6 +15,8 @@ A implementação foi testada com respostas simuladas. Na criação deste reposi
 
 ## Instalação Windows
 
+O modo online em preparação utiliza login obrigatório, PostgreSQL no Neon e aplicação no Render. Consulte [Hospedagem](docs/HOSPEDAGEM.md) para configuração, migração e limites gratuitos. A publicação e a conexão real ainda precisam ser validadas no provedor.
+
 Requisitos desta versão: Windows 64 bits e Python 3.11 ou 3.12 de 64 bits, com launcher `py` ou Python no PATH.
 
 1. Clone ou extraia o projeto em pasta local gravável.

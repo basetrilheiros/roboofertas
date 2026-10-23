@@ -73,7 +73,7 @@
 <input id="client_secret" name="client_secret" type="password" maxlength="4096" autocomplete="new-password">
 <p class="form-hint">{% if credentials.has_secret %}Deixe em branco para manter o segredo salvo com este mesmo App ID.{% else %}O segredo é necessário para salvar a configuração.{% endif %} Ele não será exibido novamente. Não envie este dado pelo chat.</p></div>
 <div class="form-group"><label for="redirect_uri">Endereço de retorno previsto</label>
-<input id="redirect_uri" name="redirect_uri" type="url" value="{{ redirect_uri }}" required maxlength="2048">
+<input id="redirect_uri" name="redirect_uri" {% if cloud_mode %}readonly{% endif %} type="url" value="{{ redirect_uri }}" required maxlength="2048">
 <p class="form-hint">Cadastre exatamente este endereço HTTPS no aplicativo do Mercado Livre. Para retorno público, publique antes a página de retorno fornecida; apenas salvar o endereço não a publica.</p></div>
 <p>Salvar mantém a integração desconectada e invalida eventuais tokens e autorizações pendentes anteriores.</p>
 <button class="btn btn-primary" type="submit">Salvar configuração local</button>

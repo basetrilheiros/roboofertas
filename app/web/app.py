@@ -73,18 +73,23 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
     if test_config:
         app.config.update(test_config)
 
-    # Garantir criação do banco e tabelas
-    db_file = Path(app.config.get("DB_PATH", DB_PATH))
+    from services.cloud_auth import configure, install
+    configure(app)
+    cloud = app.config.get("CLOUD_MODE", False)
+    # An explicit SQLite path remains supported for isolated local tests.
+    db_file = app.config["DATABASE_URL"] if cloud else Path(app.config.get("DB_PATH", DB_PATH))
     ensure_database(db_file)
     from services.security_migration import migrate_security
     from services.crypto import DEFAULT_KEY_FILE
     key_file = Path(app.config.get("KEY_FILE", DEFAULT_KEY_FILE))
     migrate_security(db_file, key_file)
     app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax", SESSION_COOKIE_SECURE=True)
-    if not app.config.get("TESTING"):
+    if not app.config.get("TESTING") and not cloud:
         import hashlib
         from services.crypto import get_or_create_master_key
         app.secret_key = hashlib.sha256(get_or_create_master_key(key_file) + b"session-2.1-A").digest()
+
+    install(app, db_file)
 
     @app.post("/ml/prepare")
     def ml_prepare():
@@ -171,9 +176,10 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
     def ml_connection_form_valid():
         # A synchronizer CSRF token remains mandatory even for browsers that omit Origin
         # or send an opaque 'null' origin with a local, self-signed HTTPS certificate.
-        if not request.is_secure or request.host != f"127.0.0.1:{PORT}" or not ml_csrf_valid():
+        expected = app.config["PUBLIC_BASE_URL"] if cloud else f"https://127.0.0.1:{PORT}"
+        from urllib.parse import urlsplit
+        if not request.is_secure or request.host != urlsplit(expected).netloc or not ml_csrf_valid():
             return False
-        expected = f"https://127.0.0.1:{PORT}"
         origin = request.headers.get("Origin")
         if origin not in (None, "null", expected):
             return False
@@ -193,7 +199,7 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
 
     @app.before_request
     def protect_live_mode_forms():
-        if app.config.get("ML_REAL_OAUTH_ENABLED") is not True:
+        if app.config.get("ML_REAL_OAUTH_ENABLED") is not True and not cloud:
             return None
         session.setdefault("ml_setup_csrf", secrets.token_urlsafe(32))
         if request.method == "POST" and not request.path.startswith(("/__local/", "/ml/", "/mercado-livre/")):
@@ -202,9 +208,10 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
 
     @app.context_processor
     def global_form_token():
-        return {"global_csrf": session.get("ml_setup_csrf", "")}
+        return {"global_csrf": session.get("ml_setup_csrf", ""), "cloud_mode": cloud}
 
     def saved_redirect_uri():
+        if cloud: return app.config["PUBLIC_BASE_URL"] + "/ml/callback"
         with _conn() as conn:
             row = conn.execute("SELECT redirect_uri FROM ml_credentials WHERE id=1").fetchone()
         value = row[0] if row else ""
@@ -231,7 +238,7 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
             with _conn() as conn:
                 save_configuration(conn, request.form.get("client_id", ""),
                     request.form.get("client_secret", ""),
-                    request.form.get("redirect_uri", f"https://127.0.0.1:{PORT}/ml/callback"), key_file)
+                    (saved_redirect_uri() if cloud else request.form.get("redirect_uri", f"https://127.0.0.1:{PORT}/ml/callback")), key_file)
         except ValueError as error:
             flash(str(error), "error")
             return ml_setup_render(status=400)
@@ -312,6 +319,17 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
             flash("O ensaio local não concluiu. Nenhuma autorização real foi executada.", "error")
             return ml_setup_render(status=500)
         return ml_setup_render(rehearsal=results)
+
+    @app.after_request
+    def sign_sales_preview(response):
+        if cloud and request.endpoint in ("sales_preview_xlsx", "sales_preview_paste", "sales_preview_sample") and response.status_code == 200:
+            from itsdangerous import URLSafeTimedSerializer
+            data = response.get_json()
+            if data and data.get("success"):
+                data["source_info"]["signature"] = URLSafeTimedSerializer(app.secret_key, salt="sales-preview").dumps(
+                    {"preview": data["preview"], "source": dict(data["source_info"])})
+                response.set_data(app.json.dumps(data))
+        return response
 
     # -------------------------------------------------------------------------
     # Rotas do Dashboard
@@ -550,6 +568,12 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
         try:
             preview_data = json.loads(preview_data_raw)
             source_info = json.loads(source_info_raw)
+            if cloud:
+                from itsdangerous import URLSafeTimedSerializer
+                signed = source_info.pop("signature", "")
+                verified = URLSafeTimedSerializer(app.secret_key, salt="sales-preview").loads(signed, max_age=600)
+                if verified != {"preview": preview_data, "source": source_info}:
+                    raise ValueError("A prévia foi alterada. Gere uma nova prévia.")
 
             with _conn() as conn:
                 result = execute_import(
@@ -592,6 +616,12 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
     # -------------------------------------------------------------------------
     @app.route("/diagnostics")
     def diagnostics_view():
+        if cloud:
+            with _conn() as conn:
+                size = conn.execute("SELECT pg_database_size(current_database())").fetchone()[0]
+                return render_template("diagnostics.html", app_version=APP_VERSION, sqlite_version="",
+                    db_path="PostgreSQL remoto", db_size_formatted=f"{size/1024:.1f} KB", backups=[],
+                    imports_list=list_imports(conn,limit=20),audit_events=list_audit_events(conn,limit=30))
         db_file = Path(app.config.get("DB_PATH", DB_PATH))
         with _conn() as conn:
             backups = list_backups(db_file.parent / "backups")
@@ -616,9 +646,15 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
 
     @app.route("/diagnostics/backup", methods=["POST"])
     def diagnostics_backup():
+        if cloud:
+            from services.hosted_backup import export_snapshot
+            from flask import send_file
+            content = export_snapshot(db_file)
+            return send_file(io.BytesIO(content),mimetype="application/json",as_attachment=True,
+                download_name="basetrilheiros-backup.json")
         try:
-            db_file = Path(app.config.get("DB_PATH", DB_PATH))
-            res = create_backup(db_file, db_file.parent / "backups")
+            local_db_file = Path(app.config.get("DB_PATH", DB_PATH))
+            res = create_backup(local_db_file, local_db_file.parent / "backups")
             flash(f"Backup gerado com sucesso: {res['filename']} ({res['size_formatted']})", "success")
         except Exception as e:
             flash(f"Erro ao criar backup: {str(e)}", "error")

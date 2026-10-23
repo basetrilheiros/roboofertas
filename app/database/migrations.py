@@ -5,13 +5,16 @@ Preserva integralmente dados existentes a cada etapa.
 from pathlib import Path
 from typing import Optional
 
-from database.connection import get_db, init_db
+from database.connection import get_db, init_db, is_postgres
 
 PHASE2_SCHEMA_PATH = Path(__file__).resolve().parent / "schema_phase2.sql"
 
 
 def ensure_database(db_path: Optional[Path] = None) -> None:
     """Garante a aplicação sequencial e idempotente de todas as migrações."""
+    if is_postgres(db_path):
+        from database.hosted_schema import ensure_hosted_schema
+        return ensure_hosted_schema(db_path)
     with get_db(db_path) as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS _migrations (

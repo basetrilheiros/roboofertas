@@ -38,7 +38,8 @@ def fingerprint(row):
 
 class OAuthConnection:
     def __init__(self, db_path, key_file, enabled=False, transport=None):
-        self.db_path=Path(db_path)
+        from database.connection import is_postgres
+        self.db_path=db_path if is_postgres(db_path) else Path(db_path)
         self.key_file=Path(key_file)
         self.enabled=enabled
         self.transport=transport if transport is not None else TokenTransport()

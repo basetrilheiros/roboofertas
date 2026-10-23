@@ -31,6 +31,7 @@
         </div>
     </header>
 
+    {% if cloud_mode %}<form method="post" action="{{ url_for('logout') }}"><input type="hidden" name="csrf_token" value="{{ global_csrf }}"><button class="btn">Sair</button></form>{% endif %}
     <main>
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -44,7 +45,7 @@
     </main>
 
     <footer>
-        <p><strong>Base Trilheiros</strong> — Aplicação Local de Curadoria e Comissões | 100% Local (127.0.0.1) | {{ platform_label }}</p>
+        <p><strong>Base Trilheiros</strong> — Aplicação Local de Curadoria e Comissões | {{ 'Painel online privado' if cloud_mode else '100% Local (127.0.0.1)' }} | {{ platform_label }}</p>
     </footer>
 
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>

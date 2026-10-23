@@ -10,6 +10,11 @@ DEFAULT_KEY_FILE = DATA_DIR / ".app_secret_key"
 
 def get_or_create_master_key(key_file=DEFAULT_KEY_FILE):
     key_file = Path(key_file)
+    secret = os.environ.get("BASETRILHEIROS_MASTER_SECRET")
+    if secret and key_file == DEFAULT_KEY_FILE:
+        if len(secret) < 32:
+            raise ValueError("A chave mestre do servidor é inválida.")
+        return base64.urlsafe_b64encode(hashlib.sha256(("fernet-online:"+secret).encode()).digest())
     key_file.parent.mkdir(parents=True, exist_ok=True)
     if not key_file.exists():
         try:
@@ -37,7 +42,7 @@ def decrypt_secret(token_str, key_file=DEFAULT_KEY_FILE):
     if not token_str: return None
     try:
         # Never silently create a replacement key when decrypting existing data.
-        if not Path(key_file).is_file(): raise ValueError("Chave ausente")
+        if not Path(key_file).is_file() and not (Path(key_file)==DEFAULT_KEY_FILE and os.environ.get("BASETRILHEIROS_MASTER_SECRET")): raise ValueError("Chave ausente")
         if token_str.startswith("fernet:v1:"):
             return get_fernet(key_file).decrypt(token_str[10:].encode()).decode()
         if token_str.startswith("gAAAA"):
