@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Visão Geral — Base Trilheiros{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+        <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--primary-dark);">Painel Comercial & Curadoria</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Visão unificada das comissões de afiliados e produtos em monitoramento.</p>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+        <a href="{{ url_for('sales_view') }}" class="btn btn-accent">📥 Importar Vendas</a>
+        <a href="{{ url_for('monitored_view') }}" class="btn btn-primary">+ Novo Monitorado</a>
+    </div>
+</div>
+
+<!-- Grid de Métricas Principais -->
+<div class="grid-4">
+    <!-- Monitorados -->
+    <div class="card metric-card">
+        <span class="metric-label">Produtos Monitorados</span>
+        <div class="metric-value">{{ monitored_stats.total }}</div>
+        <div class="metric-sub">{{ monitored_stats.ativos }} ativos | {{ monitored_stats.pausados }} pausados</div>
+    </div>
+
+    <!-- Ofertas (Placeholder Fase 2) -->
+    <div class="card metric-card placeholder">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="metric-label">Ofertas do Dia</span>
+            <span class="badge badge-futuro">Fase 2</span>
+        </div>
+        <div class="metric-value" style="color: #94a3b8;">0</div>
+        <div class="metric-sub">Robô de busca ML ativo na Fase 2</div>
+    </div>
+
+    <!-- Vendas Importadas -->
+    <div class="card metric-card">
+        <span class="metric-label">Vendas Importadas</span>
+        <div class="metric-value">{{ sales_summary.total_vendas }}</div>
+        <div class="metric-sub">
+            Diretas: {{ sales_summary.por_tipo.get('direta', {}).get('count', 0) }} | 
+            Indiretas: {{ sales_summary.por_tipo.get('indireta', {}).get('count', 0) }}
+        </div>
+    </div>
+
+    <!-- Comissões em Revisão (Alerta visual de que é pendente) -->
+    <div class="card metric-card revisao">
+        <span class="metric-label" style="color: var(--status-revisao-text);">Comissões em Revisão</span>
+        <div class="metric-value" style="color: var(--status-revisao-text);">
+            R$ {{ "%.2f"|format(sales_summary.em_revisao.centavos / 100)|replace(".", ",") }}
+        </div>
+        <div class="metric-sub alert">
+            ⏳ {{ sales_summary.em_revisao.count }} pendentes (não é receita recebida)
+        </div>
+    </div>
+</div>
+
+<!-- Segunda Linha de Métricas Comerciais -->
+<div class="grid-4">
+    <!-- Aprovadas -->
+    <div class="card metric-card aprovada">
+        <span class="metric-label" style="color: var(--status-aprovada-text);">Comissões Aprovadas</span>
+        <div class="metric-value" style="color: var(--status-aprovada-text);">
+            R$ {{ "%.2f"|format(sales_summary.aprovadas.centavos / 100)|replace(".", ",") }}
+        </div>
+        <div class="metric-sub">{{ sales_summary.aprovadas.count }} vendas confirmadas pelo ML</div>
+    </div>
+
+    <!-- Pagas (Recebidas) -->
+    <div class="card metric-card paga">
+        <span class="metric-label" style="color: var(--status-paga-text);">Comissões Pagas</span>
+        <div class="metric-value" style="color: var(--status-paga-text);">
+            R$ {{ "%.2f"|format(sales_summary.pagas.centavos / 100)|replace(".", ",") }}
+        </div>
+        <div class="metric-sub">Receita efetivamente liquidada</div>
+    </div>
+
+    <!-- Canceladas -->
+    <div class="card metric-card">
+        <span class="metric-label" style="color: var(--status-cancelada-text);">Canceladas / Devolvidas</span>
+        <div class="metric-value" style="color: var(--status-cancelada-text);">
+            R$ {{ "%.2f"|format(sales_summary.canceladas.centavos / 100)|replace(".", ",") }}
+        </div>
+        <div class="metric-sub">{{ sales_summary.canceladas.count }} cancelamentos</div>
+    </div>
+
+    <!-- Agendamento Previsto -->
+    <div class="card metric-card">
+        <span class="metric-label">Agendamento de Busca</span>
+        <div class="metric-value" style="font-size: 1.25rem; font-weight: 700; color: var(--primary);">
+            {{ settings.horario_curadoria.split()[0] }}
+        </div>
+        <div class="metric-sub">Fuso: {{ settings.horario_curadoria.split()[1] if settings.horario_curadoria.split()|length > 1 else 'America/Sao_Paulo' }}</div>
+    </div>
+</div>
+
+<!-- Seções de Distribuição e Atividades Recentes -->
+<div class="grid-2">
+    <!-- Distribuição por Categoria -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Comissões por Categoria</h3>
+            <span class="badge badge-direta">{{ sales_summary.por_categoria|length }} categorias</span>
+        </div>
+        {% if sales_summary.por_categoria %}
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Categoria</th>
+                            <th>Vendas</th>
+                            <th>Total Comissões</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cat in sales_summary.por_categoria %}
+                        <tr>
+                            <td><strong>{{ cat.cat }}</strong></td>
+                            <td>{{ cat.qtd }}</td>
+                            <td><strong>R$ {{ "%.2f"|format(cat.total_centavos / 100)|replace(".", ",") }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p style="padding: 1.5rem; text-align: center; color: var(--text-muted);">
+                Nenhuma venda importada ainda. Use a aba <a href="{{ url_for('sales_view') }}">Vendas & Comissões</a> para importar o relatório de teste.
+            </p>
+        {% endif %}
+    </div>
+
+    <!-- Últimas Atividades e Auditoria -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Últimas Atividades do Sistema</h3>
+            <a href="{{ url_for('diagnostics_view') }}" class="btn btn-secondary btn-sm">Ver Auditoria</a>
+        </div>
+        {% if recent_events %}
+            <ul style="list-style: none; display: flex; flex-direction: column; gap: 0.75rem;">
+                {% for ev in recent_events %}
+                <li style="padding-bottom: 0.6rem; border-bottom: 1px solid var(--border-color); font-size: 0.85rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.2rem;">
+                        <strong style="color: var(--primary);">{{ ev.event_type }}</strong>
+                        <span style="color: var(--text-muted); font-size: 0.75rem;">{{ ev.created_at }}</span>
+                    </div>
+                    <div style="color: var(--text-main);">{{ ev.description }}</div>
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p style="padding: 1.5rem; text-align: center; color: var(--text-muted);">
+                Nenhum evento registrado até o momento.
+            </p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Diagnóstico & Backup — Base Trilheiros{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+        <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--primary-dark);">Diagnóstico do Sistema & Backups</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">
+            Informações técnicas locais, integridade do banco SQLite e cópias de segurança.
+        </p>
+    </div>
+    <form method="POST" action="{{ url_for('diagnostics_backup') }}">
+<input type="hidden" name="csrf_token" value="{{ global_csrf }}">
+        <button type="submit" class="btn btn-accent">💾 Criar Cópia de Segurança Agora</button>
+    </form>
+</div>
+
+<!-- Grid de Informações do Ambiente -->
+<div class="grid-4" style="margin-bottom: 1.5rem;">
+    <div class="card">
+        <span class="metric-label">Versão da Aplicação</span>
+        <div style="font-size: 1.15rem; font-weight: 700; color: var(--primary); margin: 0.4rem 0;">{{ app_version }}</div>
+        <div class="metric-sub">Fase 1 (Fundação & Importador)</div>
+    </div>
+    <div class="card">
+        <span class="metric-label">Ambiente & Hardware</span>
+        <div style="font-size: 1.15rem; font-weight: 700; margin: 0.4rem 0;">{{ platform_label }}</div>
+        <div class="metric-sub">Intel Core i5 | 8 GB RAM</div>
+    </div>
+    <div class="card">
+        <span class="metric-label">Banco de Dados</span>
+        <div style="font-size: 1.15rem; font-weight: 700; color: #0284c7; margin: 0.4rem 0;">SQLite {{ sqlite_version }}</div>
+        <div class="metric-sub">WAL Mode Ativo (Concorrência Segura)</div>
+    </div>
+    <div class="card">
+        <span class="metric-label">Tamanho do Banco</span>
+        <div style="font-size: 1.15rem; font-weight: 700; color: #059669; margin: 0.4rem 0;">{{ db_size_formatted }}</div>
+        <div class="metric-sub">{{ db_path }}</div>
+    </div>
+</div>
+
+<div class="grid-2">
+    <!-- Backups do Banco -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Backups Locais do SQLite ({{ backups|length }})</h3>
+        </div>
+        {% if backups %}
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Arquivo</th>
+                            <th>Tamanho</th>
+                            <th>Data / Hora</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for b in backups %}
+                        <tr>
+                            <td><code>{{ b.filename }}</code></td>
+                            <td>{{ b.size_formatted }}</td>
+                            <td>{{ b.modified_at }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p style="padding: 1.5rem; text-align: center; color: var(--text-muted);">
+                Nenhum backup gerado ainda. Clique no botão acima para criar o primeiro backup.
+            </p>
+        {% endif %}
+    </div>
+
+    <!-- Histórico de Importações -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Histórico de Importações</h3>
+        </div>
+        {% if imports_list %}
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Arquivo</th>
+                            <th>Data</th>
+                            <th>Detectadas</th>
+                            <th>Novas / Atualizadas</th>
+                            <th>Duplicadas Ignoradas</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for imp in imports_list %}
+                        <tr>
+                            <td><strong>{{ imp.filename }}</strong></td>
+                            <td><small>{{ imp.created_at }}</small></td>
+                            <td>{{ imp.total_registros_detectados }}</td>
+                            <td>
+                                <span class="badge badge-direta">+{{ imp.novas_vendas }}</span>
+                                {% if imp.atualizadas > 0 %}
+                                    <span class="badge badge-aprovada">~{{ imp.atualizadas }}</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="badge badge-indireta">{{ imp.duplicadas_ignoradas }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p style="padding: 1.5rem; text-align: center; color: var(--text-muted);">
+                Nenhum lote importado ainda.
+            </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Trilha de Auditoria -->
+<div class="card" style="margin-top: 1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title">Trilha Completa de Auditoria (Últimos Eventos)</h3>
+    </div>
+    {% if audit_events %}
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data/Hora</th>
+                        <th>Tipo de Evento</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ev in audit_events %}
+                    <tr>
+                        <td><small>{{ ev.created_at }}</small></td>
+                        <td><code>{{ ev.event_type }}</code></td>
+                        <td>{{ ev.description }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p style="padding: 1.5rem; text-align: center; color: var(--text-muted);">
+            Nenhum evento registrado.
+        </p>
+    {% endif %}
+</div>
+{% endblock %}

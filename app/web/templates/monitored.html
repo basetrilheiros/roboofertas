@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Produtos Monitorados — Base Trilheiros{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+        <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--primary-dark);">Produtos Monitorados</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">
+            Acompanhamento de URLs específicas do Mercado Livre e definição de preço-alvo.
+        </p>
+    </div>
+</div>
+
+<div class="alert alert-info">
+    ℹ️ <strong>Nota da Fase 1:</strong> O cadastro, edição, exclusão e pausa de URLs estão totalmente operacionais e persistidos no SQLite. 
+    A varredura automatizada periódica de preços via robô ML será integrada na <strong>Fase 2</strong>.
+</div>
+
+<div class="grid-2" style="grid-template-columns: 350px 1fr; align-items: start;">
+    <!-- Formulário de Cadastro -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Adicionar Produto</h3>
+        </div>
+        <form method="POST" action="{{ url_for('monitored_add') }}">
+<input type="hidden" name="csrf_token" value="{{ global_csrf }}">
+            <div class="form-group">
+                <label for="titulo">Título / Nome do Item</label>
+                <input type="text" id="titulo" name="titulo" placeholder="Ex: Barraca Arpenaz 3 Pessoas" required>
+            </div>
+
+            <div class="form-group">
+                <label for="url">URL do Mercado Livre</label>
+                <input type="url" id="url" name="url" placeholder="https://produto.mercadolivre.com.br/MLB-..." required>
+                <div class="form-hint">Cole o link do anúncio oficial do ML</div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="categoria">Categoria</label>
+                    <input type="text" id="categoria" name="categoria" placeholder="Ex: Camping">
+                </div>
+                <div class="form-group">
+                    <label for="preco_alvo">Preço-Alvo (R$)</label>
+                    <input type="number" step="0.01" min="0.01" id="preco_alvo" name="preco_alvo" placeholder="Ex: 350,00" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="observacoes">Observações (opcional)</label>
+                <textarea id="observacoes" name="observacoes" rows="2" placeholder="Ex: Monitorar para promoção de Black Friday"></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width: 100%;">+ Cadastrar Monitorado</button>
+        </form>
+    </div>
+
+    <!-- Tabela de Produtos Monitorados -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Itens em Monitoramento ({{ products|length }})</h3>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">
+                {{ stats.ativos }} ativos | {{ stats.pausados }} pausados
+            </div>
+        </div>
+
+        {% if products %}
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Produto</th>
+                            <th>Categoria</th>
+                            <th>Preço-Alvo</th>
+                            <th>Status</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in products %}
+                        <tr>
+                            <td>
+                                <strong>{{ p.titulo }}</strong><br>
+                                <a href="{{ p.url }}" target="_blank" rel="noopener" style="font-size: 0.75rem; color: var(--primary);">Ver Link ML ↗</a>
+                                {% if p.observacoes %}
+                                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.2rem;">{{ p.observacoes }}</div>
+                                {% endif %}
+                            </td>
+                            <td><span class="badge badge-direta">{{ p.categoria or 'Geral' }}</span></td>
+                            <td><strong>R$ {{ "%.2f"|format(p.preco_alvo_centavos / 100)|replace(".", ",") }}</strong></td>
+                            <td>
+                                {% if p.status == 'ativo' %}
+                                    <span class="badge badge-aprovada">Ativo</span>
+                                {% else %}
+                                    <span class="badge badge-indireta">Pausado</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div style="display: flex; gap: 0.35rem;">
+                                    <form method="POST" action="{{ url_for('monitored_toggle', product_id=p.id) }}" style="display: inline;">
+<input type="hidden" name="csrf_token" value="{{ global_csrf }}">
+                                        <button type="submit" class="btn btn-secondary btn-sm">
+                                            {% if p.status == 'ativo' %}Pausar{% else %}Ativar{% endif %}
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('monitored_delete', product_id=p.id) }}" onsubmit="return confirm('Deseja realmente remover este produto monitorado?');" style="display: inline;">
+<input type="hidden" name="csrf_token" value="{{ global_csrf }}">
+                                        <button type="submit" class="btn btn-danger btn-sm">Excluir</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p style="padding: 2rem; text-align: center; color: var(--text-muted);">
+                Nenhum produto cadastrado para monitoramento ainda. Adicione uma URL ao lado.
+            </p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

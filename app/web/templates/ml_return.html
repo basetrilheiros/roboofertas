@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>Concluir conexão</title><script src="{{ url_for('static', filename='js/ml_return.js') }}" defer></script></head>
+<body><h1>Concluir conexão com Mercado Livre</h1><p id="message">Validando o retorno neste computador…</p>
+<form id="complete" method="post" action="{{ url_for('ml_complete') }}" hidden>
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<input type="hidden" name="code"><input type="hidden" name="state"><input type="hidden" name="error">
+<button type="submit">Concluir conexão neste computador</button></form></body></html>

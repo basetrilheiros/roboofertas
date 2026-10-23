@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+
+{% block title %}Parâmetros de Curadoria — Base Trilheiros{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1.5rem;">
+    <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--primary-dark);">Parâmetros de Curadoria & Pesquisa</h2>
+    <p style="color: var(--text-muted); font-size: 0.9rem;">
+        Configure os critérios que direcionarão a busca no Mercado Livre Brasil e o algoritmo de pontuação.
+    </p>
+</div>
+
+<form method="POST" action="{{ url_for('parameters_save') }}">
+<input type="hidden" name="csrf_token" value="{{ global_csrf }}">
+    <div class="grid-2">
+        <!-- Bloco 1: Nicho e Termos -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">1. Segmento e Categorias</h3>
+            </div>
+            
+            <div class="form-group">
+                <label for="categorias_busca">Categorias Principais (separadas por vírgula)</label>
+                <input type="text" id="categorias_busca" name="categorias_busca" value="{{ settings.categorias_busca }}" required>
+                <div class="form-hint">Ex: Camping, Trilhas, Sobrevivência, Pesca, Acessórios Outdoor</div>
+            </div>
+
+            <div class="form-group">
+                <label for="termos_busca">Palavras-chave de Busca</label>
+                <textarea id="termos_busca" name="termos_busca" rows="3" required>{{ settings.termos_busca }}</textarea>
+                <div class="form-hint">Termos que o robô de busca pesquisará nas fontes autorizadas do Mercado Livre.</div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="preco_min">Preço Mínimo (R$)</label>
+                    <input type="number" step="0.01" id="preco_min" name="preco_min" value="{{ '%.2f'|format(settings.preco_min_centavos / 100) }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="preco_max">Preço Máximo (R$)</label>
+                    <input type="number" step="0.01" id="preco_max" name="preco_max" value="{{ '%.2f'|format(settings.preco_max_centavos / 100) }}" required>
+                </div>
+            </div>
+
+            <div class="form-group" style="background: #f8fafc; padding: 0.85rem; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="desconto_min_ativo" {% if settings.desconto_min_ativo %}checked{% endif %}>
+                    <span>Exigir Desconto Mínimo (Opcional — inicialmente desativado)</span>
+                </label>
+                <div style="margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                    <label for="desconto_min_percentual" style="margin-bottom:0; font-size: 0.8rem;">Percentual se ativo:</label>
+                    <input type="number" step="0.1" id="desconto_min_percentual" name="desconto_min_percentual" value="{{ settings.desconto_min_percentual }}" style="width: 90px;">
+                    <span style="font-size: 0.85rem;">%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bloco 2: Filtros de Qualidade e Reputação -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">2. Qualidade e Reputação</h3>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="avaliacao_minima">Avaliação Mínima (estrelas)</label>
+                    <input type="number" step="0.1" min="1.0" max="5.0" id="avaliacao_minima" name="avaliacao_minima" value="{{ settings.avaliacao_minima }}" required>
+                    <div class="form-hint">Entre 1.0 e 5.0 (padrão recomendado: 4.5)</div>
+                </div>
+                <div class="form-group">
+                    <label for="min_avaliacoes">Mínimo de Avaliações</label>
+                    <input type="number" min="0" id="min_avaliacoes" name="min_avaliacoes" value="{{ settings.min_avaliacoes }}" required>
+                    <div class="form-hint">Volume mínimo de reviews para confiabilidade</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="reputacao_minima">Reputação Mínima do Vendedor</label>
+                <select id="reputacao_minima" name="reputacao_minima">
+                    <option value="mercado_lider_platinum" {% if settings.reputacao_minima == 'mercado_lider_platinum' %}selected{% endif %}>MercadoLíder Platinum (Mais exigente)</option>
+                    <option value="mercado_lider_gold" {% if settings.reputacao_minima == 'mercado_lider_gold' %}selected{% endif %}>MercadoLíder Gold (Recomendado)</option>
+                    <option value="mercado_lider" {% if settings.reputacao_minima == 'mercado_lider' %}selected{% endif %}>MercadoLíder</option>
+                    <option value="verde" {% if settings.reputacao_minima == 'verde' %}selected{% endif %}>Termômetro Verde</option>
+                </select>
+            </div>
+
+            <div class="form-row" style="margin-top: 1rem;">
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="filtro_frete_gratis" {% if settings.filtro_frete_gratis %}checked{% endif %}>
+                        <span>Exigir Frete Grátis</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="filtro_full" {% if settings.filtro_full %}checked{% endif %}>
+                        <span>Exigir Envio Full</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bloco 3: Volumes, Pesos e Curadoria -->
+    <div class="card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+            <h3 class="card-title">3. Volumes, Pesos da Curadoria e Agendamento</h3>
+        </div>
+
+        <div class="grid-4">
+            <div class="form-group">
+                <label for="volume_anuncios_alvo">Volume-Alvo de Anúncios</label>
+                <input type="number" min="50" max="1000" id="volume_anuncios_alvo" name="volume_anuncios_alvo" value="{{ settings.volume_anuncios_alvo }}" required>
+                <div class="form-hint">Meta futura: 200 a 500 anúncios (sujeito à fonte autorizada)</div>
+            </div>
+
+            <div class="form-group">
+                <label for="max_recomendacoes">Máximo de Recomendações</label>
+                <input type="number" min="1" max="50" id="max_recomendacoes" name="max_recomendacoes" value="{{ settings.max_recomendacoes }}" required>
+                <div class="form-hint">Até 10 ofertas selecionadas por dia</div>
+            </div>
+
+            <div class="form-group">
+                <label for="diversidade_max_por_categoria">Diversidade (Max/Categoria)</label>
+                <input type="number" min="1" max="10" id="diversidade_max_por_categoria" name="diversidade_max_por_categoria" value="{{ settings.diversidade_max_por_categoria }}" required>
+                <div class="form-hint">Evita excesso de um mesmo tipo de item</div>
+            </div>
+
+            <div class="form-group">
+                <label for="antirrepeticao_dias">Prazo Antirrepetição (Dias)</label>
+                <input type="number" min="1" max="90" id="antirrepeticao_dias" name="antirrepeticao_dias" value="{{ settings.antirrepeticao_dias }}" required>
+                <div class="form-hint">Não recomendar o mesmo item repetidamente</div>
+            </div>
+        </div>
+
+        <div class="form-row" style="margin-top: 1rem;">
+            <div class="form-group">
+                <label>Peso Desconto Real</label>
+                <input type="number" step="0.05" min="0" max="1" name="peso_desconto" value="{{ settings.peso_desconto }}" required>
+            </div>
+            <div class="form-group">
+                <label>Peso Avaliação</label>
+                <input type="number" step="0.05" min="0" max="1" name="peso_avaliacao" value="{{ settings.peso_avaliacao }}" required>
+            </div>
+            <div class="form-group">
+                <label>Peso Frete</label>
+                <input type="number" step="0.05" min="0" max="1" name="peso_frete" value="{{ settings.peso_frete }}" required>
+            </div>
+            <div class="form-group">
+                <label for="horario_curadoria">Horário Padrão de Execução</label>
+                <input type="text" id="horario_curadoria" name="horario_curadoria" value="{{ settings.horario_curadoria }}" required>
+                <div class="form-hint">Padrão: 08:00 America/Sao_Paulo</div>
+            </div>
+        </div>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancelar</a>
+        <button type="submit" class="btn btn-primary" style="padding: 0.65rem 1.5rem; font-size: 1rem;">💾 Salvar Parâmetros no SQLite</button>
+    </div>
+</form>
+{% endblock %}

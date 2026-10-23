@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% block title %}Vendas & Comissões — Base Trilheiros{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+        <h2 style="font-size: 1.5rem; font-weight: 800; color: var(--primary-dark);">Gestão de Vendas & Comissões</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">
+            Importador de relatórios de afiliados do Mercado Livre, conferência prévia e controle comercial.
+        </p>
+    </div>
+</div>
+
+<!-- Seção do Importador -->
+<div class="card" style="margin-bottom: 2rem;">
+    <div class="card-header">
+        <h3 class="card-title">Importação de Relatório de Vendas</h3>
+        <span class="badge badge-direta">Tolerante a #VALUE! e Blocos</span>
+    </div>
+
+    <!-- Abas: Upload XLSX vs Colar Texto -->
+    <div class="tabs">
+        <button type="button" class="tab-btn active" data-tab="tab-upload">📁 Upload de Arquivo (.xlsx)</button>
+        <button type="button" class="tab-btn" data-tab="tab-paste">📋 Colar Texto Copiado da Tabela</button>
+    </div>
+
+    <!-- Conteúdo Aba 1: Upload -->
+    <div id="tab-upload" class="tab-content active">
+        <form id="form-upload-xlsx" enctype="multipart/form-data">
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="file_xlsx">Selecione a Planilha (.xlsx)</label>
+                    <input type="file" id="file_xlsx" name="file" accept=".xlsx" style="padding: 0.4rem;" required>
+                    <div class="form-hint">Compatível com a planilha real de afiliados do Mercado Livre Brasil.</div>
+                </div>
+                <div class="form-group">
+                    <label for="ano_upload">Ano de Referência (Confirmação Obrigatória)</label>
+                    <input type="number" id="ano_upload" name="ano" value="2026" min="2020" max="2035" required>
+                    <div class="form-hint">O relatório traz datas como "29/set", sem ano explícito. Confirme o ano.</div>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                <button type="button" id="btn-load-sample" class="btn btn-secondary btn-sm" onclick="loadSampleFile()">
+                    📄 Usar Arquivo de Teste Local (Relatórios/Teste esportação.xlsx)
+                </button>
+                <button type="submit" class="btn btn-primary">🔍 Analisar e Gerar Prévia</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Conteúdo Aba 2: Colar Texto -->
+    <div id="tab-paste" class="tab-content">
+        <form id="form-paste-text">
+            <div class="form-group">
+                <label for="pasted_text">Cole o Texto / Linhas da Tabela de Vendas</label>
+                <textarea id="pasted_text" name="pasted_text" rows="6" placeholder="Cole aqui os dados copiados diretamente da tela ou do Excel..." required></textarea>
+                <div class="form-hint">O parser identifica automaticamente linhas de loja, valores concatenados e transações.</div>
+            </div>
+
+            <div class="grid-2">
+                <div class="form-group">
+                    <label for="ano_paste">Ano de Referência</label>
+                    <input type="number" id="ano_paste" name="ano" value="2026" min="2020" max="2035" required>
+                </div>
+                <div style="display: flex; align-items: flex-end; justify-content: flex-end;">
+                    <button type="submit" class="btn btn-primary">🔍 Analisar e Gerar Prévia</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <!-- Container da Prévia (aparece via JS antes de persistir) -->
+    <div id="preview-container" style="display: none; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px dashed var(--border-color);">
+        <div id="preview-content"></div>
+
+        <form method="POST" action="{{ url_for('sales_confirm_import') }}" style="margin-top: 1.25rem; display: flex; justify-content: flex-end; gap: 1rem;">
+<input type="hidden" name="csrf_token" value="{{ global_csrf }}">
+            <input type="hidden" id="confirmed-preview-data" name="preview_data">
+            <input type="hidden" id="confirmed-source-info" name="source_info">
+            <button type="button" class="btn btn-secondary" onclick="document.getElementById('preview-container').style.display='none'">Cancelar</button>
+            <button type="submit" id="btn-confirm-import" class="btn btn-accent" style="display: none; padding: 0.6rem 1.5rem; font-size: 0.95rem;">
+                ✅ Confirmar e Gravar Vendas no SQLite
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Filtros e Listagem de Vendas Já Gravadas -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Vendas Registradas no Banco ({{ sales|length }})</h3>
+        <div style="display: flex; gap: 0.5rem;">
+            <span class="badge badge-revisao">Em Revisão: R$ {{ "%.2f"|format(summary.em_revisao.centavos / 100)|replace(".", ",") }}</span>
+            <span class="badge badge-aprovada">Aprovadas: R$ {{ "%.2f"|format(summary.aprovadas.centavos / 100)|replace(".", ",") }}</span>
+        </div>
+    </div>
+
+    <!-- Filtros de Busca -->
+    <form method="GET" action="{{ url_for('sales_view') }}" style="margin-bottom: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
+        <div style="flex: 2; min-width: 200px;">
+            <label for="search" style="font-size: 0.75rem;">Buscar Produto / Transação / Loja</label>
+            <input type="text" id="search" name="search" value="{{ current_search }}" placeholder="Ex: Câmera, 9000000000000001...">
+        </div>
+        <div style="flex: 1; min-width: 140px;">
+            <label for="status" style="font-size: 0.75rem;">Status</label>
+            <select id="status" name="status">
+                <option value="TODOS" {% if current_status == 'TODOS' %}selected{% endif %}>Todos os Status</option>
+                <option value="EM REVISÃO" {% if current_status == 'EM REVISÃO' %}selected{% endif %}>EM REVISÃO</option>
+                <option value="APROVADA" {% if current_status == 'APROVADA' %}selected{% endif %}>APROVADA</option>
+                <option value="PAGA" {% if current_status == 'PAGA' %}selected{% endif %}>PAGA</option>
+                <option value="CANCELADA" {% if current_status == 'CANCELADA' %}selected{% endif %}>CANCELADA</option>
+            </select>
+        </div>
+        <div style="flex: 1; min-width: 130px;">
+            <label for="tipo" style="font-size: 0.75rem;">Tipo de Venda</label>
+            <select id="tipo" name="tipo">
+                <option value="TODOS" {% if current_tipo == 'TODOS' %}selected{% endif %}>Todos os Tipos</option>
+                <option value="direta" {% if current_tipo == 'direta' %}selected{% endif %}>Venda direta</option>
+                <option value="indireta" {% if current_tipo == 'indireta' %}selected{% endif %}>Venda indireta</option>
+            </select>
+        </div>
+        <div style="flex: 1; min-width: 140px;">
+            <label for="categoria" style="font-size: 0.75rem;">Categoria</label>
+            <select id="categoria" name="categoria">
+                <option value="TODAS" {% if current_categoria == 'TODAS' %}selected{% endif %}>Todas as Categorias</option>
+                {% for cat in categories %}
+                    <option value="{{ cat }}" {% if current_categoria == cat %}selected{% endif %}>{{ cat }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <button type="submit" class="btn btn-primary btn-sm" style="padding: 0.6rem 1rem;">Filtrar</button>
+            <a href="{{ url_for('sales_view') }}" class="btn btn-secondary btn-sm" style="padding: 0.6rem 0.8rem;">Limpar</a>
+        </div>
+    </form>
+
+    <!-- Tabela de Vendas -->
+    {% if sales %}
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Data</th>
+                        <th>Transação</th>
+                        <th>Loja</th>
+                        <th>Descrição / Categoria</th>
+                        <th>Preço Unit.</th>
+                        <th>Comissão</th>
+                        <th>Tipo / Taxa</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in sales %}
+                    <tr>
+                        <td><strong>{{ s.data_venda }}</strong><br><small style="color: var(--text-muted)">{{ s.data_texto }}</small></td>
+                        <td><code>#{{ s.transacao }}</code></td>
+                        <td>{{ s.loja or '-' }}</td>
+                        <td>
+                            <strong>{{ s.descricao }}</strong><br>
+                            <small style="color: var(--text-muted)">Categoria: {{ s.categoria or 'Geral' }}</small>
+                        </td>
+                        <td>R$ {{ "%.2f"|format(s.preco_unitario_centavos / 100)|replace(".", ",") }} ({{ s.quantidade }} un)</td>
+                        <td><strong>R$ {{ "%.2f"|format(s.comissao_centavos / 100)|replace(".", ",") }}</strong></td>
+                        <td>
+                            {% if s.tipo_venda == 'direta' %}
+                                <span class="badge badge-direta">Direta</span>
+                            {% else %}
+                                <span class="badge badge-indireta">Indireta</span>
+                            {% endif %}
+                            <small style="color: var(--text-muted)">({{ s.taxa_percentual }}%)</small>
+                        </td>
+                        <td>
+                            {% if s.status == 'EM REVISÃO' %}
+                                <span class="badge badge-revisao">Em Revisão</span>
+                            {% elif s.status == 'APROVADA' %}
+                                <span class="badge badge-aprovada">Aprovada</span>
+                            {% elif s.status == 'PAGA' %}
+                                <span class="badge badge-paga">Paga</span>
+                            {% else %}
+                                <span class="badge badge-cancelada">Cancelada</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <!-- Formulário rápido para atualizar status e testar auditoria -->
+                            <form method="POST" action="{{ url_for('sales_update_status', sale_id=s.id) }}" style="display: flex; gap: 0.25rem;">
+<input type="hidden" name="csrf_token" value="{{ global_csrf }}">
+                                <select name="status" onchange="this.form.submit()" style="padding: 0.2rem; font-size: 0.75rem; width: 110px;">
+                                    <option value="EM REVISÃO" {% if s.status == 'EM REVISÃO' %}selected{% endif %}>Em Revisão</option>
+                                    <option value="APROVADA" {% if s.status == 'APROVADA' %}selected{% endif %}>Aprovada</option>
+                                    <option value="PAGA" {% if s.status == 'PAGA' %}selected{% endif %}>Paga</option>
+                                    <option value="CANCELADA" {% if s.status == 'CANCELADA' %}selected{% endif %}>Cancelada</option>
+                                </select>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p style="padding: 2.5rem; text-align: center; color: var(--text-muted);">
+            Nenhuma venda encontrada com os filtros selecionados.<br>
+            Utilize o botão acima <strong>"Usar Arquivo de Teste Local"</strong> para importar os 10 registros de amostra.
+        </p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadSampleFile() {
+    const ano = document.getElementById("ano_upload").value || 2026;
+    const formData = new FormData();
+    formData.append("ano", ano);
+    formData.append("use_sample", "true");
+    await processPreview("{{ url_for('sales_preview_sample') }}", formData);
+}
+</script>
+{% endblock %}

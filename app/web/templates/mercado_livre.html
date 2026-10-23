@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Mercado Livre — Base Trilheiros
+{% if real_enabled %}
+<section class="card" style="margin-top:1.5rem">
+<h3>Buscar anúncios reais</h3>
+<p>Consulta manual de até 20 anúncios. Os preços retornados não comprovam desconto ou menor preço histórico.</p>
+<form method="post" action="{{ url_for('ml_search') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<label for="query">O que você procura?</label>
+<input id="query" name="query" value="{{ live_result.query if live_result else '' }}" minlength="2" maxlength="120" placeholder="Ex.: barraca camping" required>
+<button type="submit" class="btn btn-primary">Buscar no Mercado Livre</button>
+</form>
+<p>É necessário autorizar a conta. Se a API recusar a busca, o painel mostrará o bloqueio sem apresentar produtos fictícios como reais.</p>
+</section>
+{% endif %}
+{% if live_result %}
+<section class="card" style="margin-top:1.5rem">
+<h3>Resultados reais para “{{ live_result.query }}”</h3>
+<p>Conta verificada: {{ live_result.account.nickname }}. Retornados {{ live_result['items']|length }} anúncios nesta página; total informado pela API: {{ live_result.total }}.</p>
+{% if live_result['items'] %}
+<div class="table-responsive"><table>
+<thead><tr><th>Produto</th><th>Preço</th><th>Frete grátis</th><th>Full</th><th>Link</th></tr></thead>
+<tbody>{% for item in live_result['items'] %}<tr>
+<td>{{ item.title }}</td><td>{{ item.currency_id }} {{ '%.2f'|format(item.price_centavos/100)|replace('.', ',') }}</td>
+<td>{{ 'Sim' if item.free_shipping else 'Não informado/Não' }}</td><td>{{ 'Sim' if item.is_full else 'Não informado/Não' }}</td>
+<td>{% if item.permalink %}<a href="{{ item.permalink }}" target="_blank" rel="noopener noreferrer">Ver anúncio</a>{% else %}Link indisponível{% endif %}</td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}<p>A API não retornou anúncios para esta busca.</p>{% endif %}
+<p>A consulta não importa vendas e não cria ofertas automaticamente.</p>
+</section>
+{% endif %}
+
+{% endblock %}
+{% block content %}
+<h2>Configuração do Mercado Livre</h2>
+{% if real_enabled %}
+<p>A autorização da conta está disponível. Use a busca manual abaixo para consultar anúncios após conectar a conta.</p>
+{% else %}
+<p>Etapa de preparação local. A autorização da conta e as consultas reais estão desativadas.</p>
+{% endif %}
+{% if real_enabled %}
+<section class="card" style="margin:1.5rem 0">
+<h3>Conexão da conta</h3>
+{% if credentials.connected %}
+<p><strong>Conta autorizada. Tokens salvos com criptografia neste computador.</strong></p>
+<p>A conta foi autorizada. As consultas só acontecem quando você executa uma busca.</p>
+<form method="post" action="{{ url_for('ml_disconnect') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<button class="btn btn-secondary" type="submit">Desconectar deste computador</button>
+</form>
+{% else %}
+{% if credentials.expired %}<p>A autorização salva expirou. Uma busca tentará renovar o acesso; se a renovação falhar, conecte novamente.</p>{% endif %}
+<p>O botão leva ao portal oficial do Mercado Livre para você revisar a conta e as permissões. Ao voltar, o aplicativo recebe e protege os tokens, sem executar pesquisas ou outras consultas.</p>
+{% if credentials.client_id and credentials.has_secret %}
+<form method="post" action="{{ url_for('ml_connect') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<button class="btn btn-primary" type="submit">Conectar minha conta</button>
+</form>
+{% else %}<p>Salve o App ID e o Client Secret abaixo para disponibilizar o botão de conexão.</p>{% endif %}
+{% endif %}
+</section>
+{% endif %}
+<div class="grid-2" style="margin-top:1.5rem">
+<section class="card">
+<h3>Dados do seu aplicativo</h3>
+<p>Preencha somente se você já possui um aplicativo cadastrado no Mercado Livre. O teste simulado funciona sem estes dados.</p>
+<p><strong>Situação:</strong> {% if credentials.has_secret %}Segredo salvo localmente. {% if credentials.connected %}Autorização recebida.{% elif real_enabled %}Pronto para iniciar a autorização pelo botão acima.{% else %}Conexão real desativada.{% endif %}{% else %}Configuração ainda não concluída.{% endif %}</p>
+<form method="post" action="{{ url_for('ml_configuration_save') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<div class="form-group"><label for="client_id">App ID (Client ID)</label>
+<input id="client_id" name="client_id" value="{{ credentials.client_id }}" inputmode="numeric" maxlength="40" required autocomplete="off"></div>
+<div class="form-group"><label for="client_secret">Client Secret</label>
+<input id="client_secret" name="client_secret" type="password" maxlength="4096" autocomplete="new-password">
+<p class="form-hint">{% if credentials.has_secret %}Deixe em branco para manter o segredo salvo com este mesmo App ID.{% else %}O segredo é necessário para salvar a configuração.{% endif %} Ele não será exibido novamente. Não envie este dado pelo chat.</p></div>
+<div class="form-group"><label for="redirect_uri">Endereço de retorno previsto</label>
+<input id="redirect_uri" name="redirect_uri" type="url" value="{{ redirect_uri }}" required maxlength="2048">
+<p class="form-hint">Cadastre exatamente este endereço HTTPS no aplicativo do Mercado Livre. Para retorno público, publique antes a página de retorno fornecida; apenas salvar o endereço não a publica.</p></div>
+<p>Salvar mantém a integração desconectada e invalida eventuais tokens e autorizações pendentes anteriores.</p>
+<button class="btn btn-primary" type="submit">Salvar configuração local</button>
+</form>
+</section>
+<section class="card">
+<h3>Teste com produtos fictícios</h3>
+<p>Confira como os produtos são apresentados, sem usar sua conta e sem acessar o Mercado Livre.</p>
+<form method="post" action="{{ url_for('ml_simulation') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<button class="btn btn-secondary" type="submit">Executar teste simulado</button>
+</form>
+<p>Os exemplos não são ofertas reais e não entram nas vendas, nos monitorados ou no histórico de preços.</p>
+</section>
+</div>
+{% if products %}
+<section class="card" style="margin-top:1.5rem">
+<h3>Teste concluído — 3 produtos fictícios</h3>
+<p>Nenhuma consulta externa foi realizada. Sua configuração e seus dados comerciais não foram alterados.</p>
+<div class="table-container"><table><thead><tr><th>Produto de demonstração</th><th>Preço fictício</th><th>Frete grátis</th><th>Full</th></tr></thead>
+<tbody>{% for product in products %}<tr><td>{{ product.title }}</td><td>R$ {{ '%.2f'|format(product.price_centavos / 100)|replace('.', ',') }}</td><td>{{ 'Sim' if product.free_shipping else 'Não' }}</td><td>{{ 'Sim' if product.is_full else 'Não' }}</td></tr>{% endfor %}</tbody></table></div>
+</section>
+{% endif %}
+<section class="card" style="margin-top:1.5rem">
+<h3>Ensaio da conexão — sem acessar sua conta</h3>
+<p>Teste as etapas de autorização com uma conta fictícia e uma base temporária. Suas credenciais salvas não são usadas neste ensaio.</p>
+<form method="post" action="{{ url_for('ml_rehearsal') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<button class="btn btn-secondary" type="submit">Testar conexão simulada</button>
+</form>
+{% if rehearsal %}
+<h4 style="margin-top:1rem">Ensaio concluído</h4>
+<ul>{% for result in rehearsal %}<li>{{ result }}</li>{% endfor %}</ul>
+<p><strong>Nenhuma autorização real, troca real de tokens ou consulta externa foi realizada.</strong></p>
+{% endif %}
+</section>
+
+{% if real_enabled %}
+<section class="card" style="margin-top:1.5rem">
+<h3>Buscar anúncios reais</h3>
+<p>Consulta manual de até 20 anúncios. Os preços retornados não comprovam desconto ou menor preço histórico.</p>
+<form method="post" action="{{ url_for('ml_search') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<label for="query">O que você procura?</label>
+<input id="query" name="query" value="{{ live_result.query if live_result else '' }}" minlength="2" maxlength="120" placeholder="Ex.: barraca camping" required>
+<button type="submit" class="btn btn-primary">Buscar no Mercado Livre</button>
+</form>
+<p>É necessário autorizar a conta. Se a API recusar a busca, o painel mostrará o bloqueio sem apresentar produtos fictícios como reais.</p>
+</section>
+{% endif %}
+{% if live_result %}
+<section class="card" style="margin-top:1.5rem">
+<h3>Resultados reais para “{{ live_result.query }}”</h3>
+<p>Conta verificada: {{ live_result.account.nickname }}. Retornados {{ live_result['items']|length }} anúncios nesta página; total informado pela API: {{ live_result.total }}.</p>
+{% if live_result['items'] %}
+<div class="table-responsive"><table>
+<thead><tr><th>Produto</th><th>Preço</th><th>Frete grátis</th><th>Full</th><th>Link</th></tr></thead>
+<tbody>{% for item in live_result['items'] %}<tr>
+<td>{{ item.title }}</td><td>{{ item.currency_id }} {{ '%.2f'|format(item.price_centavos/100)|replace('.', ',') }}</td>
+<td>{{ 'Sim' if item.free_shipping else 'Não informado/Não' }}</td><td>{{ 'Sim' if item.is_full else 'Não informado/Não' }}</td>
+<td>{% if item.permalink %}<a href="{{ item.permalink }}" target="_blank" rel="noopener noreferrer">Ver anúncio</a>{% else %}Link indisponível{% endif %}</td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}<p>A API não retornou anúncios para esta busca.</p>{% endif %}
+<p>A consulta não importa vendas e não cria ofertas automaticamente.</p>
+</section>
+{% endif %}
+
+{% endblock %}
