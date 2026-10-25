@@ -5,7 +5,7 @@ from database.connection import get_db
 from services.crypto import decrypt_secret, encrypt_secret
 from services.oauth_connection import validate_tokens
 from services import ml_auth
-from services.ml_client import MercadoLivreClient
+from services.ml_client import MercadoLivreClient, SearchRestricted
 
 
 def validate_redirect_uri(value):
@@ -70,10 +70,15 @@ def search(db_path, key_file, query, client_factory=MercadoLivreClient):
     try:
         # Probe account separately so a search restriction is not mistaken for failed OAuth.
         account = client.get_current_user()
-        result = client.search_items(query, limit=20)
+        try:
+            result = client.search_items(query, limit=20)
+        except SearchRestricted:
+            result = client.search_catalog_offers(query)
         for item in result['itens']:
             item['permalink'] = safe_link(item.get('permalink'))
         return {'query': query, 'account': account, 'items': result['itens'],
-                'total': result['paging']['total'], 'checked_at': datetime.now(timezone.utc).isoformat()}
+                'total': result['paging']['total'], 'source': result.get('source', 'listings'),
+                'unavailable_products': result.get('unavailable_products', 0),
+                'checked_at': datetime.now(timezone.utc).isoformat()}
     finally:
         client.session.close()

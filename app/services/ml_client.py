@@ -13,6 +13,10 @@ API_BASE_URL = "https://api.mercadolibre.com"
 MAX_SEARCH_OFFSET_LIMIT = 1000  # Hard limit documentado pela API do Mercado Livre
 
 
+class SearchRestricted(PermissionError):
+    """The general listing search specifically returned 403."""
+
+
 class MercadoLivreClient:
     """Cliente HTTP com controle de requisições e normalização de anúncios."""
 
@@ -169,7 +173,7 @@ class MercadoLivreClient:
         if response.status_code == 401:
             raise PermissionError("Token de acesso expirado ou inválido (HTTP 401). Renovação necessária.")
         if response.status_code == 403:
-            raise PermissionError("Acesso negado pela API do Mercado Livre (HTTP 403). A conta pode estar conectada, mas esta busca não foi permitida. Não é possível atribuir a causa apenas às permissões.")
+            raise SearchRestricted("Acesso negado pela API do Mercado Livre (HTTP 403). A conta pode estar conectada, mas esta busca não foi permitida. Não é possível atribuir a causa apenas às permissões.")
         if response.status_code != 200:
             raise ValueError(f"Consulta recusada pela API (HTTP {response.status_code}). Nenhum resultado foi carregado.")
 
@@ -189,6 +193,41 @@ class MercadoLivreClient:
             "total_retornados": len(normalized_items),
             "itens": normalized_items,
         }
+
+    def search_catalog_offers(self, query):
+        import re
+        response = self._request('GET', '/products/search', params={
+            'site_id': 'MLB', 'status': 'active', 'q': query, 'limit': 5})
+        if response.status_code != 200:
+            raise ValueError(f'Busca geral bloqueada; catálogo também indisponível (HTTP {response.status_code}).')
+        data = response.json()
+        items, seen, unavailable = [], set(), 0
+        products = data.get('results', [])[:5]
+        for product in products:
+            pid = product.get('id', '')
+            if not isinstance(pid, str) or not re.fullmatch(r'MLB[0-9]+', pid):
+                continue
+            offers = self._request('GET', f'/products/{pid}/items', params={'limit': 4})
+            if offers.status_code == 401:
+                raise PermissionError('Autorização recusada ao consultar ofertas (HTTP 401). Conecte novamente.')
+            if offers.status_code != 200:
+                unavailable += 1
+                continue
+            for offer in offers.json().get('results', [])[:4]:
+                iid = offer.get('item_id', '')
+                if not isinstance(iid, str) or not re.fullmatch(r'MLB[0-9]+', iid) or iid in seen:
+                    continue
+                if not isinstance(offer.get('price'), (int, float)) or offer['price'] <= 0:
+                    continue
+                seen.add(iid)
+                raw = dict(offer, id=iid, title=product.get('name') or pid,
+                    seller={'id': offer.get('seller_id')},
+                    permalink=f'https://www.mercadolivre.com.br/p/{pid}?wid={iid}')
+                normalized = self.normalize_item(raw)
+                normalized['catalog_product_id'] = pid
+                items.append(normalized)
+        return {'itens': items, 'paging': {'total': None}, 'source': 'catalog',
+            'catalog_products_checked': len(products), 'unavailable_products': unavailable}
 
     @staticmethod
     def normalize_item(raw: Dict[str, Any]) -> Dict[str, Any]:
