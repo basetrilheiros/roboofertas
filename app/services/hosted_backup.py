@@ -3,7 +3,7 @@ import json
 from database.connection import get_db
 
 TABLES=('settings','monitored_products','imports','sales','sale_status_history','audit_events','scheduler_logs',
- 'discovery_runs','discovered_products','price_history','curated_offers','user_decisions_feedback','ml_credentials')
+ 'discovery_runs','discovered_products','price_history','curated_offers','user_decisions_feedback','ml_credentials','affiliate_links')
 
 def export_snapshot(url):
     with get_db(url) as conn:

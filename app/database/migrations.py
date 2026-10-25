@@ -37,3 +37,5 @@ def ensure_database(db_path: Optional[Path] = None) -> None:
                 with open(PHASE2_SCHEMA_PATH, "r", encoding="utf-8") as f:
                     conn.executescript(f.read())
             conn.execute("INSERT INTO _migrations (name) VALUES ('0002_phase2_discovery_and_prices');")
+        from services.affiliate_links import SCHEMA
+        conn.execute(SCHEMA)

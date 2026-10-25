@@ -283,6 +283,9 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
             kwargs = {"client_factory": factory} if factory else {}
             result = search(db_file, key_file, request.form.get("query", ""),
                 catalog_limit=int(request.form.get("catalog_limit", "10")), **kwargs)
+            from services.affiliate_links import attach_links
+            with _conn() as conn:
+                attach_links(conn, result['items'])
             return ml_setup_render(live_result=result)
         except (ValueError, PermissionError, ConnectionError) as error:
             flash(str(error), "error")
@@ -290,6 +293,18 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
         except Exception:
             flash("A consulta não concluiu. Nenhum resultado foi carregado e nenhum dado comercial foi alterado.", "error")
             return ml_setup_render(status=502)
+
+    @app.post("/mercado-livre/affiliate-link")
+    def ml_affiliate_link():
+        if app.config.get('ML_REAL_OAUTH_ENABLED') is not True or not ml_connection_form_valid():
+            return jsonify(error='Sessão expirada ou origem inválida.'), 403
+        from services.affiliate_links import save_link
+        try:
+            with _conn() as conn:
+                link = save_link(conn, request.form.get('item_id', ''), request.form.get('affiliate_link', ''))
+            return jsonify(url=link)
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
 
     @app.post("/mercado-livre/simulate")
     def ml_simulation():

@@ -23,3 +23,5 @@ def ensure_hosted_schema(url):
                 conn.executescript((Path(__file__).parent/filename).read_text(encoding='utf-8-sig'))
                 conn.execute('INSERT INTO _migrations(name) VALUES (?)',(name,))
         conn.executescript(EXTRA)
+        from services.affiliate_links import SCHEMA
+        conn.execute(SCHEMA)

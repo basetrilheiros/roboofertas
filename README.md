@@ -44,6 +44,12 @@ O diretório `public-callback` é apenas a fonte da página: este repositório n
 
 ## Estrutura
 
+### Links de associado nos resultados
+
+A coluna “Meu link de associado” guarda por anúncio os links gerados no portal oficial para o perfil BaseTrilheiros e a etiqueta whatsapp, conforme configuração deste projeto. Abra “Adicionar link”, copie o endereço da oferta, gere o link no portal, cole e salve. Links salvos reaparecem nas consultas do mesmo anúncio e podem ser abertos ou copiados. São incluídos nos backups.
+
+Essa função não gera links automaticamente por OAuth nem confirma elegibilidade, comissão ou titularidade de um link encurtado. A atribuição depende do link oficial e da sessão/etiqueta escolhidas no portal. O gerador oficial pode adicionar os produtos à lista “Minhas recomendações”.
+
 - `app/web/`: rotas, templates e arquivos estáticos.
 - `app/services/`: importação, OAuth, criptografia, API, TLS, backup e permissões.
 - `app/models/`: acesso SQL dos módulos de negócio.

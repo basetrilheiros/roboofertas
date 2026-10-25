@@ -1,49 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Mercado Livre — Base Trilheiros
-{% if real_enabled %}
-<section class="card" style="margin-top:1.5rem">
-<h3>Buscar anúncios reais</h3>
-<p>Consulta manual de anúncios, com ampliação da amostra pelo botão Carregar mais. Os preços retornados não comprovam desconto ou menor preço histórico.</p>
-<form method="post" action="{{ url_for('ml_search') }}">
-<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-<label for="query">O que você procura?</label>
-<input id="query" name="query" value="{{ live_result.query if live_result else '' }}" minlength="2" maxlength="120" placeholder="Ex.: barraca camping" required>
-<button type="submit" class="btn btn-primary">Buscar no Mercado Livre</button>
-</form>
-<p>É necessário autorizar a conta. Se a API recusar a busca, o painel mostrará o bloqueio sem apresentar produtos fictícios como reais.</p>
-</section>
-{% endif %}
-{% if live_result %}
-<section class="card" style="margin-top:1.5rem">
-<h3>Resultados reais para “{{ live_result.query }}”</h3>
-<p>Conta verificada: {{ live_result.account.nickname }}. Retornados {{ live_result['items']|length }} anúncios nesta consulta.</p>
-{% if live_result.source == 'catalog' %}
-<p>A busca geral foi recusada pela API. Estes resultados são ofertas de até {{ live_result.product_limit }} produtos do catálogo, com até 10 vendedores por produto; não representam todos os anúncios nem estão ordenados pelo menor preço. O título identifica o produto do catálogo. Os links abrem sua página com a oferta selecionada.</p>
-{% if live_result.unavailable_products %}<p>Não foi possível consultar ofertas de {{ live_result.unavailable_products }} produtos; os resultados são parciais.</p>{% endif %}
-{% endif %}
-{% if live_result['items'] %}
-<div class="table-responsive"><table>
-<thead><tr><th>Produto</th><th>Preço</th><th>Frete grátis</th><th>Full</th><th>Vendedor (ID)</th><th>Link</th></tr></thead>
-<tbody>{% for item in live_result['items'] %}<tr>
-<td>{{ item.title }}</td><td>{{ item.currency_id }} {{ '%.2f'|format(item.price_centavos/100)|replace('.', ',') }}</td>
-<td>{{ 'Sim' if item.free_shipping else 'Não informado/Não' }}</td><td>{{ 'Sim' if item.is_full else 'Não informado/Não' }}</td>
-<td>{{ item.seller_id or 'Não informado' }}</td><td>{% if item.permalink %}<a href="{{ item.permalink }}" target="_blank" rel="noopener noreferrer">Ver oferta</a>{% else %}Link indisponível{% endif %}</td>
-</tr>{% endfor %}</tbody></table></div>
-{% else %}<p>A API não retornou anúncios para esta busca.</p>{% endif %}
-{% if live_result.next_limit %}
-<form method="post" action="{{ url_for('ml_search') }}">
-<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-<input type="hidden" name="query" value="{{ live_result.query }}">
-<input type="hidden" name="catalog_limit" value="{{ live_result.next_limit }}">
-<button type="submit" class="btn btn-primary">Carregar mais — consultar até {{ live_result.next_limit }} produtos</button>
-<p>A consulta ampliada atualiza os resultados anteriores e pode demorar mais. Preços e disponibilidade podem mudar.</p>
-</form>
-{% elif live_result.source == 'catalog' %}<p>Fim desta amostra do catálogo. Refine a busca para explorar outros produtos.</p>{% endif %}
-<p>A consulta não importa vendas e não cria ofertas automaticamente.</p>
-</section>
-{% endif %}
-
-{% endblock %}
+{% block title %}Mercado Livre — Base Trilheiros{% endblock %}
 {% block content %}
 <h2>Configuração do Mercado Livre</h2>
 {% if real_enabled %}
@@ -140,14 +96,37 @@
 {% if live_result %}
 <section class="card" style="margin-top:1.5rem">
 <h3>Resultados reais para “{{ live_result.query }}”</h3>
-<p>Conta verificada: {{ live_result.account.nickname }}. Retornados {{ live_result['items']|length }} anúncios nesta página; total informado pela API: {{ live_result.total }}.</p>
+<p>Conta verificada: {{ live_result.account.nickname }}. Retornados {{ live_result['items']|length }} anúncios nesta consulta.</p>
+{% if live_result.source == 'catalog' %}
+<p>A busca geral foi recusada pela API. Estes resultados são ofertas de até {{ live_result.product_limit }} produtos do catálogo, com até 10 vendedores por produto; não representam todos os anúncios nem estão ordenados pelo menor preço. O título identifica o produto do catálogo. Os links abrem sua página com a oferta selecionada.</p>
+{% if live_result.unavailable_products %}<p>Não foi possível consultar ofertas de {{ live_result.unavailable_products }} produtos; os resultados são parciais.</p>{% endif %}
+{% endif %}
 {% if live_result['items'] %}
 <div class="table-responsive"><table>
-<thead><tr><th>Produto</th><th>Preço</th><th>Frete grátis</th><th>Full</th><th>Link</th></tr></thead>
+<thead><tr><th>Produto</th><th>Preço</th><th>Frete grátis</th><th>Full</th><th>Vendedor (ID)</th><th>Link</th><th>Meu link de associado</th></tr></thead>
 <tbody>{% for item in live_result['items'] %}<tr>
 <td>{{ item.title }}</td><td>{{ item.currency_id }} {{ '%.2f'|format(item.price_centavos/100)|replace('.', ',') }}</td>
 <td>{{ 'Sim' if item.free_shipping else 'Não informado/Não' }}</td><td>{{ 'Sim' if item.is_full else 'Não informado/Não' }}</td>
-<td>{% if item.permalink %}<a href="{{ item.permalink }}" target="_blank" rel="noopener noreferrer">Ver anúncio</a>{% else %}Link indisponível{% endif %}</td>
+<td>{{ item.seller_id or 'Não informado' }}</td><td>{% if item.permalink %}<a href="{{ item.permalink }}" target="_blank" rel="noopener noreferrer">Ver oferta</a>{% else %}Link indisponível{% endif %}</td>
+<td>
+{% if item.ml_item_id %}
+<form class="affiliate-link-form" action="{{ url_for('ml_affiliate_link') }}" method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<input type="hidden" name="item_id" value="{{ item.ml_item_id }}">
+<a class="affiliate-saved" {% if item.affiliate_link %}href="{{ item.affiliate_link }}"{% else %}hidden{% endif %} target="_blank" rel="noopener noreferrer">Abrir meu link</a>
+<button type="button" class="affiliate-copy" {% if not item.affiliate_link %}hidden{% endif %}>Copiar meu link</button>
+<details><summary>{{ 'Editar link' if item.affiliate_link else 'Adicionar link' }}</summary>
+<p>BaseTrilheiros / whatsapp. Gere o link oficial desta oferta e cole abaixo. O sistema guarda o endereço informado, sem verificar a atribuição da comissão.</p>
+<button type="button" class="affiliate-copy-source" data-url="{{ item.permalink }}">Copiar endereço da oferta</button>
+<a href="https://www.mercadolivre.com.br/afiliados/linkbuilder" target="_blank" rel="noopener noreferrer">Gerador oficial</a>
+<label for="affiliate-{{ loop.index }}">Link gerado no portal</label>
+<input id="affiliate-{{ loop.index }}" type="url" name="affiliate_link" value="{{ item.affiliate_link or '' }}" maxlength="4096" required placeholder="https://meli.la/...">
+<button type="submit">Salvar link</button>
+</details>
+<span class="affiliate-status" role="status"></span>
+</form>
+{% else %}Indisponível{% endif %}
+</td>
 </tr>{% endfor %}</tbody></table></div>
 {% else %}<p>A API não retornou anúncios para esta busca.</p>{% endif %}
 {% if live_result.next_limit %}
@@ -163,4 +142,8 @@
 </section>
 {% endif %}
 
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/affiliate-links.js') }}"></script>
 {% endblock %}

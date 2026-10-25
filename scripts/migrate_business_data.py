@@ -18,7 +18,8 @@ def migrate(source_path, destination):
     try:
         source.execute('BEGIN')
         if source.execute('PRAGMA integrity_check').fetchone()[0]!='ok': raise ValueError('Banco de origem inválido.')
-        snapshot={t:source.execute('SELECT * FROM '+t).fetchall() for t in business}
+        existing={r[0] for r in source.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        snapshot={t:([] if t=='affiliate_links' and t not in existing else source.execute('SELECT * FROM '+t).fetchall()) for t in business}
         ensure_database(destination)
         with get_db(destination) as target:
             target.execute('SELECT pg_advisory_xact_lock(71420903)')
@@ -38,7 +39,7 @@ def migrate(source_path, destination):
                 counts[table]=len(rows)
                 actual=target.execute('SELECT count(*) FROM '+table).fetchone()[0]
                 if actual!=len(rows): raise ValueError('Contagem divergente; migração desfeita.')
-                if table!='settings':
+                if table not in ('settings','affiliate_links'):
                     target.execute("SELECT setval(pg_get_serial_sequence(?, 'id'), COALESCE((SELECT MAX(id) FROM "+table+"),1), (SELECT count(*)>0 FROM "+table+"))",(table,))
             expected=source.execute('SELECT COALESCE(SUM(comissao_centavos),0) FROM sales').fetchone()[0]
             actual=target.execute('SELECT COALESCE(SUM(comissao_centavos),0) FROM sales').fetchone()[0]
