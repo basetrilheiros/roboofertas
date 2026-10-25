@@ -44,3 +44,17 @@ def test_fallback_only_for_general_search_restriction(monkeypatch):
     api.search_items.side_effect = PermissionError('401')
     with pytest.raises(PermissionError): search(None, None, 'barraca', lambda **kw: api)
     api.search_catalog_offers.assert_not_called()
+
+
+def test_catalog_expansion_and_end_of_sample():
+    api = MercadoLivreClient('synthetic')
+    products = [{'id': f'MLB{n}', 'name': 'Lanterna'} for n in range(10)]
+    api._request = Mock(side_effect=[response(200, {'results': products})] +
+        [response(200, {'results': []}) for _ in products])
+    result = api.search_catalog_offers('lanterna', product_limit=10)
+    assert result['next_limit'] == 20
+    assert api._request.call_args_list[0].kwargs['params']['limit'] == 10
+    api._request = Mock(side_effect=[response(200, {'results': products})] +
+        [response(200, {'results': []}) for _ in products])
+    assert api.search_catalog_offers('lanterna', product_limit=20)['next_limit'] is None
+    with pytest.raises(ValueError): api.search_catalog_offers('lanterna', product_limit=500)

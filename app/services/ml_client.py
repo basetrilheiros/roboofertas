@@ -194,26 +194,28 @@ class MercadoLivreClient:
             "itens": normalized_items,
         }
 
-    def search_catalog_offers(self, query):
+    def search_catalog_offers(self, query, product_limit=10):
+        if product_limit not in (10, 20, 50):
+            raise ValueError("Quantidade de produtos inválida.")
         import re
         response = self._request('GET', '/products/search', params={
-            'site_id': 'MLB', 'status': 'active', 'q': query, 'limit': 5})
+            'site_id': 'MLB', 'status': 'active', 'q': query, 'limit': product_limit})
         if response.status_code != 200:
             raise ValueError(f'Busca geral bloqueada; catálogo também indisponível (HTTP {response.status_code}).')
         data = response.json()
         items, seen, unavailable = [], set(), 0
-        products = data.get('results', [])[:5]
+        products = data.get('results', [])[:product_limit]
         for product in products:
             pid = product.get('id', '')
             if not isinstance(pid, str) or not re.fullmatch(r'MLB[0-9]+', pid):
                 continue
-            offers = self._request('GET', f'/products/{pid}/items', params={'limit': 4})
+            offers = self._request('GET', f'/products/{pid}/items', params={'limit': 10})
             if offers.status_code == 401:
                 raise PermissionError('Autorização recusada ao consultar ofertas (HTTP 401). Conecte novamente.')
             if offers.status_code != 200:
                 unavailable += 1
                 continue
-            for offer in offers.json().get('results', [])[:4]:
+            for offer in offers.json().get('results', [])[:10]:
                 iid = offer.get('item_id', '')
                 if not isinstance(iid, str) or not re.fullmatch(r'MLB[0-9]+', iid) or iid in seen:
                     continue
@@ -227,7 +229,9 @@ class MercadoLivreClient:
                 normalized['catalog_product_id'] = pid
                 items.append(normalized)
         return {'itens': items, 'paging': {'total': None}, 'source': 'catalog',
-            'catalog_products_checked': len(products), 'unavailable_products': unavailable}
+            'catalog_products_checked': len(products), 'unavailable_products': unavailable,
+            'next_limit': next((n for n in (10, 20, 50) if n > product_limit), None)
+                if len(products) == product_limit else None, 'product_limit': product_limit}
 
     @staticmethod
     def normalize_item(raw: Dict[str, Any]) -> Dict[str, Any]:

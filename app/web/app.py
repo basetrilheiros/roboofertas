@@ -281,7 +281,8 @@ def create_app(test_config: Optional[dict] = None) -> Flask:
         try:
             factory = app.config.get("ML_TEST_CLIENT_FACTORY") if app.testing else None
             kwargs = {"client_factory": factory} if factory else {}
-            result = search(db_file, key_file, request.form.get("query", ""), **kwargs)
+            result = search(db_file, key_file, request.form.get("query", ""),
+                catalog_limit=int(request.form.get("catalog_limit", "10")), **kwargs)
             return ml_setup_render(live_result=result)
         except (ValueError, PermissionError, ConnectionError) as error:
             flash(str(error), "error")

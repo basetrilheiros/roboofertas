@@ -3,7 +3,7 @@
 {% if real_enabled %}
 <section class="card" style="margin-top:1.5rem">
 <h3>Buscar anúncios reais</h3>
-<p>Consulta manual de até 20 anúncios. Os preços retornados não comprovam desconto ou menor preço histórico.</p>
+<p>Consulta manual de anúncios, com ampliação da amostra pelo botão Carregar mais. Os preços retornados não comprovam desconto ou menor preço histórico.</p>
 <form method="post" action="{{ url_for('ml_search') }}">
 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 <label for="query">O que você procura?</label>
@@ -18,7 +18,7 @@
 <h3>Resultados reais para “{{ live_result.query }}”</h3>
 <p>Conta verificada: {{ live_result.account.nickname }}. Retornados {{ live_result['items']|length }} anúncios nesta consulta.</p>
 {% if live_result.source == 'catalog' %}
-<p>A busca geral foi recusada pela API. Estes resultados são ofertas de até 5 produtos do catálogo, com até 4 vendedores por produto; não representam todos os anúncios nem estão ordenados pelo menor preço. O título identifica o produto do catálogo. Os links abrem sua página com a oferta selecionada.</p>
+<p>A busca geral foi recusada pela API. Estes resultados são ofertas de até {{ live_result.product_limit }} produtos do catálogo, com até 10 vendedores por produto; não representam todos os anúncios nem estão ordenados pelo menor preço. O título identifica o produto do catálogo. Os links abrem sua página com a oferta selecionada.</p>
 {% if live_result.unavailable_products %}<p>Não foi possível consultar ofertas de {{ live_result.unavailable_products }} produtos; os resultados são parciais.</p>{% endif %}
 {% endif %}
 {% if live_result['items'] %}
@@ -30,6 +30,15 @@
 <td>{{ item.seller_id or 'Não informado' }}</td><td>{% if item.permalink %}<a href="{{ item.permalink }}" target="_blank" rel="noopener noreferrer">Ver oferta</a>{% else %}Link indisponível{% endif %}</td>
 </tr>{% endfor %}</tbody></table></div>
 {% else %}<p>A API não retornou anúncios para esta busca.</p>{% endif %}
+{% if live_result.next_limit %}
+<form method="post" action="{{ url_for('ml_search') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<input type="hidden" name="query" value="{{ live_result.query }}">
+<input type="hidden" name="catalog_limit" value="{{ live_result.next_limit }}">
+<button type="submit" class="btn btn-primary">Carregar mais — consultar até {{ live_result.next_limit }} produtos</button>
+<p>A consulta ampliada atualiza os resultados anteriores e pode demorar mais. Preços e disponibilidade podem mudar.</p>
+</form>
+{% elif live_result.source == 'catalog' %}<p>Fim desta amostra do catálogo. Refine a busca para explorar outros produtos.</p>{% endif %}
 <p>A consulta não importa vendas e não cria ofertas automaticamente.</p>
 </section>
 {% endif %}
@@ -118,7 +127,7 @@
 {% if real_enabled %}
 <section class="card" style="margin-top:1.5rem">
 <h3>Buscar anúncios reais</h3>
-<p>Consulta manual de até 20 anúncios. Os preços retornados não comprovam desconto ou menor preço histórico.</p>
+<p>Consulta manual de anúncios, com ampliação da amostra pelo botão Carregar mais. Os preços retornados não comprovam desconto ou menor preço histórico.</p>
 <form method="post" action="{{ url_for('ml_search') }}">
 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 <label for="query">O que você procura?</label>
@@ -141,6 +150,15 @@
 <td>{% if item.permalink %}<a href="{{ item.permalink }}" target="_blank" rel="noopener noreferrer">Ver anúncio</a>{% else %}Link indisponível{% endif %}</td>
 </tr>{% endfor %}</tbody></table></div>
 {% else %}<p>A API não retornou anúncios para esta busca.</p>{% endif %}
+{% if live_result.next_limit %}
+<form method="post" action="{{ url_for('ml_search') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<input type="hidden" name="query" value="{{ live_result.query }}">
+<input type="hidden" name="catalog_limit" value="{{ live_result.next_limit }}">
+<button type="submit" class="btn btn-primary">Carregar mais — consultar até {{ live_result.next_limit }} produtos</button>
+<p>A consulta ampliada atualiza os resultados anteriores e pode demorar mais. Preços e disponibilidade podem mudar.</p>
+</form>
+{% elif live_result.source == 'catalog' %}<p>Fim desta amostra do catálogo. Refine a busca para explorar outros produtos.</p>{% endif %}
 <p>A consulta não importa vendas e não cria ofertas automaticamente.</p>
 </section>
 {% endif %}

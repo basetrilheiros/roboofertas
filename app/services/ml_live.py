@@ -62,7 +62,9 @@ def safe_link(value):
         return ''
 
 
-def search(db_path, key_file, query, client_factory=MercadoLivreClient):
+def search(db_path, key_file, query, client_factory=MercadoLivreClient, catalog_limit=10):
+    if catalog_limit not in (10, 20, 50):
+        raise ValueError("Quantidade de produtos inválida.")
     query = query.strip()
     if not 2 <= len(query) <= 120:
         raise ValueError('Informe uma busca com 2 a 120 caracteres.')
@@ -73,12 +75,13 @@ def search(db_path, key_file, query, client_factory=MercadoLivreClient):
         try:
             result = client.search_items(query, limit=20)
         except SearchRestricted:
-            result = client.search_catalog_offers(query)
+            result = client.search_catalog_offers(query, product_limit=catalog_limit)
         for item in result['itens']:
             item['permalink'] = safe_link(item.get('permalink'))
         return {'query': query, 'account': account, 'items': result['itens'],
                 'total': result['paging']['total'], 'source': result.get('source', 'listings'),
                 'unavailable_products': result.get('unavailable_products', 0),
+                'next_limit': result.get('next_limit'), 'product_limit': result.get('product_limit', 0),
                 'checked_at': datetime.now(timezone.utc).isoformat()}
     finally:
         client.session.close()
